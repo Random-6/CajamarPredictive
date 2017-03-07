@@ -88,8 +88,4 @@ ModelScore < function(dt, prediction_column, plot.histogram = FALSE) {
 }
 ```
 
-```
-## Error in eval(expr, envir, enclos): object 'ModelScore' not found
-```
-
 

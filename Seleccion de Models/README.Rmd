@@ -63,7 +63,7 @@ ggplot(historical_melted, aes(x = value, y = Value)) + geom_line() +  facet_wrap
 - *Model_Score*: este model score es una medida de error creada para este projecto. Se calcula ordenando cada producto recomendado al customer por la probabilidad de ser comprado, entonces a cada producto se le da el número que le corresponde segun esa ordenación. A partir de aqui, se multiplica por 0 o por 1 (depende de si el producto fue realmente comprado o no) el valor de la ordenación (por tanto un customer para el cual se haya acertado el producto que compró dandole la mayor probabilidad, su valor final será de 1, mientras que para un customer que el producto que comprara ha sido ordenado como el último la penalización és de 94). Entonces se hace la suma para todos los customers y se normaliza para el maximo valor (94*numero de únicos customers). 
 
 
-```{r}
+```{r, eval=FALSE}
 ModelScore < function(dt, prediction_column, plot.histogram = FALSE) {
   ## Ordenar dataset en funcion de la predicción y dar un valor de orden para todos los productos agrupando por customer
   dt.validate <- dt[order(ID_Customer,get(prediction_column)), .(
