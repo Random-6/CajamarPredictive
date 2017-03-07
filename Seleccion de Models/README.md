@@ -50,11 +50,46 @@ ggplot(historical_melted, aes(x = value, y = Value)) + geom_line() +  facet_wrap
 
 <img src="figure/unnamed-chunk-2-1.png" title="plot of chunk unnamed-chunk-2" alt="plot of chunk unnamed-chunk-2" style="display: block; margin: auto;" />
 
-
-3. Ensemble 
-
-
 **Validación** 
  
- 
+ Para la validación del modelo se han usado tres métricas principales: ROC-Curve, Precision-Recall Curve y el Model_Score. 
+
+- *ROC Curve*: curva ampliamente conocida y aplicada en el mundo de los clasificadores. Esta curva permite ver la variación del ratio de falsos positivos (eje-x) y el ratio de verdaderos positivos (eje-y) usando diferentes thresholds como puntos. Esta curva permite obtener el AUC (area bajo la curva) que nos da una idea general de lo buen o mal clasificador que es nuestro modelo (siendo el mejor valor 1 y el peor 0)
+- *Precision Recall*: curva aplicada también a los clasificadores binarios y altamente relacionada con la curva ROC. Esta, sin embargo, presenta valores de precision (numero de verdaderos positivos sobre el total clasificado como positivo) vs el recall (o el true positiva rate). Entonces, esta curva permite ver como de bien clasifica nuestro modelo la categoria considerada como positiva. En el caso de datos imbalanced (donde se pueden obtener grandes valores de acuracidad clasificando todo el dataset en una misma categoria), es importante tener clara la prevalencia de la precision y del recall para la validación de los modelos. 
+- *Model_Score*: este model score es una medida de error creada para este projecto. Se calcula ordenando cada producto recomendado al customer por la probabilidad de ser comprado, entonces a cada producto se le da el número que le corresponde segun esa ordenación. A partir de aqui, se multiplica por 0 o por 1 (depende de si el producto fue realmente comprado o no) el valor de la ordenación (por tanto un customer para el cual se haya acertado el producto que compró dandole la mayor probabilidad, su valor final será de 1, mientras que para un customer que el producto que comprara ha sido ordenado como el último la penalización és de 94). Entonces se hace la suma para todos los customers y se normaliza para el maximo valor (94*numero de únicos customers). 
+
+
+
+```r
+ModelScore < function(dt, prediction_column, plot.histogram = FALSE) {
+  ## Ordenar dataset en funcion de la predicción y dar un valor de orden para todos los productos agrupando por customer
+  dt.validate <- dt[order(ID_Customer,get(prediction_column)), .(
+    order_prediction = 1:.N, ## from 1 to N (94), 
+    last_product_bought, ## Variable dicotómica de 0/1 (no comprado - comprado) 
+    get(prediction_column)
+  ), by = Customer_ID]
+  
+  ## Calcular el Model score de cada customer. Este model score se calcula como el valor del order prediction (que va de 1 a 94) multiplicado por la variable dicotómica target (0-1)
+  ## Entonces, a mayor order_prediction (es decir, a menor valor de probabilidad del producto de ser comprado), menor posición en el ranking y por tanto un mayor model_score (i.e. producto
+  ## queda en la posición de recomendación 30 y al final es ese producto el que fue comprado, el model_score será de 30). 
+  
+  ## Normalización del model score sobre el máximo: 
+  model_score_total <- test.set.to.validate[,.(model_score = sum(model_score)), by = ID_Customer][,sum(model_score)] / (94*dt[,uniqueN(ID_Customer)])  ##En nuestro caso, el peor caso seria que el producto comprado fuera el último que se recomendó 
+  
+  ## Pintar el histograma del model_score si se decea 
+  if (isTrue(plot.histogram)) {
+    print(ggplot(dt[,.(model_Score = sum(model_score)), by = ID_Customer]), aes(x = model_score)) + geom_histogram()
+  }
+  
+  ## Estimar porcentages de customers por el cual se recomendó el producto a comprar el 1r, 2n i 3r
+  
+  
+  return(model_score_total)
+}
+```
+
+```
+## Error in eval(expr, envir, enclos): object 'ModelScore' not found
+```
+
 
