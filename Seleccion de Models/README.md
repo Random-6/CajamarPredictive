@@ -1,11 +1,4 @@
----
-title: "Seleccion de Models y Ajuste de Parametres"
-author: "Xisca Pericas & Alexandra Abos"
-date: "March 7, 2017"
-output: html_document
----
 
----------
 
 
 
@@ -51,8 +44,8 @@ En el siguiente gráfico se muestra la variación de la AUC en función del núm
 
 ```r
 grid.search.results <- fread(paste0(getwd(),'/dataset/grid_search.csv'))
-historical_melted <- melt(grid.search.results, id.vars = 'Round', measure.vars = setdiff(colnames(grid.search.results),c('Round','elapsed','min_rows')))
-ggplot(historical_melted[variable != 'Value'], aes(x = Round, y = value)) + geom_line() +  facet_wrap(~ variable, scales = 'free') + geom_vline(xintercept = grid.search.results[which.max(Value), Round], color = 'red', linetype = 'dashed') + ggtitle('Parameters per iteration')
+historical_melted <- melt(grid.search.results, id.vars = 'Value', measure.vars = setdiff(colnames(grid.search.results),c('Round','Value','min_rows','elapsed')))
+ggplot(historical_melted, aes(x = value, y = Value)) + geom_line() +  facet_wrap(~ variable, scales = 'free') + ggtitle('Parameters per iteration vs AUC')
 ```
 
 <img src="figure/unnamed-chunk-2-1.png" title="plot of chunk unnamed-chunk-2" alt="plot of chunk unnamed-chunk-2" style="display: block; margin: auto;" />
