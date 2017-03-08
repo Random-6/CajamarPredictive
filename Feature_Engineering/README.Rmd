@@ -1,0 +1,210 @@
+En este apartado se explican qué variables se introducen en los modelos predictivos. 
+
+Para preparar el dataset de train, se ha decidido utilizar el dataset sin los últimas compras, ya que estas se utilizarán para validar nuestro modelo. 
+
+```{r,  warning=FALSE,results='hide'}
+# Librerias usadas
+suppressPackageStartupMessages({
+library('ggplot2')
+library('zoo')
+library('caret')
+library('data.table')
+library('lubridate')
+library('Hmisc')
+library(readr)
+})
+
+# Cargar datos
+data.train.without.last <- as.data.table(read_csv('/Users/random6/data/data_train_without_last.csv'))
+
+```
+
+### Son todas las variables necesarias
+
+Recordemos que variables tienen estos datasets:
+
+"ID_Customer" = Identificador de cliente  
+"Cod_Prod" = Código de la modalidad de producto contratado      
+"Cod_Fecha" = Fecha de contratación de la modalidad de producto   
+"Socio_Demo_01" = Edad
+"Socio_Demo_02" = Antigüedad
+"Socio_Demo_03" = Ingresos
+"Socio_Demo_04" = Sexo (1: Hombre, 2: Mujer)
+"Socio_Demo_05" = Segmento (00: Particular | 01:Agricultor | 02:Comercio | 03:Autónomo)
+
+Es importante tener en cuenta para quien se esta haciendo este modelo predictivo. En este caso, el banco Cajamar tiene que decidir la interpretabilidad y viabilidad del modelo. Así pues, una variable que hemos decidido *no utilizar para esta predicción es el género del cliente*, ya que no es adecuado que el banco utilize un modelo que introduzca diferencias de compra en función del género del cliente.  
+```{r}
+## Eliminar columna sexo
+data_without_last[,Socio_Demo_04 := NULL]
+```
+
+
+A partir de las variables dadas también se pueden crear de otras para enriquecer la base. 
+
+Primero de todo, tal y como se vio en el análisis exploratorio de los datos, hay mucha información temporal que nos puede ser útil. Así pues, podemos utilizar las variables creadas en el apartado anterior, como *mes* y *año*, *tiempo desde primera compra*, *tiempo desde última compra* y *tiempo medio entre compras*. Otro concepto interesante es saber cuantos productos ha comprado cada customer por mes, ya que así se intenta modelizar el hecho que hay productos que se compran mas en épocas determinadas y usuarios que tienden a compran más en determinados meses. 
+
+A parte de las variables temporales, también se puede introducir información de los productos comprados anteriormente, ya que se ha visto que hay productos que se tienden a comprar juntos o de manera consecutiva, así que tener en cuenta los productos comprados previamente es también importante. 
+
+Para ver que productos se han comprado más, se puede añadir columna por producto indicado si se ha comprado anteriormente. 
+```{r}
+## Añadir customers con solo un producto
+customer_one_product <- data.train[,uniqueN(Cod_Prod), by = ID_Customer][V1 == 1, ]
+customer_one_product <- data.train[ID_Customer %in% customer_one_product[,ID_Customer], .SD, .SDcols = c('ID_Customer','Cod_Prod',grep('Socio',colnames(data.train),value = T)), ]
+
+## Añadir a variable sociodemo
+prelast_socio <- data.train.without.last[order(date), .SD[.N], by = ID_Customer, .SDcols = grep('Socio_', colnames(data.train), value = T)]
+data.train.without.last[,ind := 1]
+pivot_product <- dcast.data.table(data.train.without.last[order(date)],ID_Customer ~ Cod_Prod, fun.aggregate = sum, value.var = 'ind')
+pivot_product <- pivot_product[prelast_socio, on = 'ID_Customer']
+
+pivot_product_all <- rbind(pivot_product, customer_one_product[,.SD, .SDcols = setdiff(colnames(customer_one_product),'Cod_Prod')], fill = T)
+pivot_product_all[is.na(pivot_product_all)] <- 0
+
+## Cambiar nombres
+setnames(pivot_product_all, grep('^[0-9]', colnames(pivot_product_all), value = T), paste0(grep('^[0-9]', colnames(pivot_product_all), value = T), '_bought_before'))
+
+## Sumar columnas para ver cuales estan en todos los customers
+customer.per.previous.product <- pivot_product_all[,sapply(.SD, sum), .SDcols = grep('_bought_before', colnames(pivot_product_all), value = T)]
+most_popular <- sort(customer.per.previous.product, decreasing = T)/data.train.without.last[,uniqueN(ID_Customer)]*100
+
+```
+
+
+## Otras variables
+
+### 1. Clustering productos
+
+Una primera aproximación es hacer un clustering para ver si se agrupan los productos y podemos hacer una variable cluster_producto. 
+Para hacer el clustering se utiliza el paqueta h2o, ya que tiene funciones optimizadas para trabajar con algoritmos de machine learning. 
+
+```{r}
+## Cluster productes: variables: productes_venuts_per_mes 
+data.train.without.last[,month := as.factor(month)]
+product.mes <- data.train.without.last[,.(product_per_mes = .N), by = c('month','Cod_Prod')]
+product.mes.dcast <- dcast.data.table(product.mes, Cod_Prod ~ month, value = product_per_mes)
+product.mes.dcast[is.na(product.mes.dcast)] <- 0
+setnames(product.mes.dcast,grep('[0-9]',colnames(product.mes.dcast), value =T), paste0('month_',grep('[0-9]',colnames(product.mes.dcast), value =T)))
+## Join 
+setkey(product.mes.dcast,Cod_Prod)
+product.dataset <- product.mes.dcast
+
+fwrite(product.dataset, file = paste0(getwd(),'/product_caracteritzat.csv'), row.names = F)
+
+## Cluster 
+## Load 
+product.dataset.h2o <- LoadInH2o(product.dataset, destination_frame = 'product.dataset')
+
+## Cluster 
+my.cluster.predictors<- setdiff(colnames(product.dataset),'Cod_Prod')
+product.cluster <- h2o.kmeans(product.dataset.h2o,x = my.cluster.predictors, k = 4, model_id = 'cluster_products', nfolds = 3)
+cluster.prediction <- as.data.table(h2o.predict(product.cluster, product.dataset.h2o))
+product.dataset[,cluster := cluster.prediction$predict]
+
+## Products per cluster
+ggplot(product.dataset[,.N,by = cluster],aes(x = cluster, y = N))  + geom_bar(stat = 'identity')
+
+## Proporcion 
+product.mes.dcast[,total := sum(.SD), .SDcols = setdiff(colnames(product.mes.dcast),'Cod_Prod'), by = Cod_Prod]
+product.mes.dcast.proportion <- product.mes.dcast[,.SD/total, .SDcols = setdiff(colnames(product.mes.dcast),c('Cod_Prod','total'))]
+product.mes.dcast.proportion[,Cod_Prod := product.mes.dcast$Cod_Prod]
+
+## Load 
+product.dataset.proportion.h2o <- LoadInH2o(product.mes.dcast.proportion, destination_frame = 'product.dataset.proportion', factors = 'Cod_Prod')
+
+```
+Como se puede observar, el clustering de productos según el número de productos por mes de compra no genera resultados muy aprovechables, ya que separa los productos en un cluster muy grande y otros de pequeños. Esta información no nos es muy útiles para complementar el modelo. 
+
+### 2. Cluster de customers
+
+Vamos a hacer otra aproximación de clustering, esta vez de los usuarios dadas sus características sociodemográficas y la información de compra. Pera hacer este clustering, también se añadirá información sobre el penúltimo producto comprado. 
+
+```{r}
+setkey(pivot_product_all, ID_Customer)
+setkey(temps_var_per_customer, ID_Customer)
+customer.complet <- pivot_product_all[temps_var_per_customer]
+
+## Afegir penultim producte 
+penultim.products <- data.train.without.last[order(date), .(Cod_Prod =Cod_Prod[.N]), by = ID_Customer]
+setkey(penultim.products,ID_Customer)
+setkey(customer.complet,ID_Customer)
+customer.complet <- customer.complet[penultim.products]
+
+fwrite(customer.complet, file = paste0(getwd(),'/Feature_Engineering/Data/customer_complet.csv'), row.names = F)
+
+```
+
+Las variables que se añaden en el clustering son: 
+- Socio_Demo01-05, todas excepto el género. 
+- Variables de tiempo de compra.
+- Total productos comprados
+
+De esta manera se han caracterizado los customers segun sus características demograficas y sus características de compras. 
+
+```{r}
+
+## Cluster por ID_Customer 
+# Load 
+my.factors <- setdiff(colnames(customer.complet),c(grep('month',colnames(customer.complet),value = T),c('Socio_Demo_01','Socio_Demo_02','Socio_Demo_03','total_productes_comprats','temps_desde_primera_compra','temps_desde_darrera_compra','lag_entre_compres')))
+customer.complet.h2o <- LoadInH2o(customer.complet, factors = my.factors, destination_frame = 'customer.complet')
+
+# Cluster 
+my.predictors <- setdiff(colnames(customer.complet),c('ID_Customer','Socio_Demo_04')) #sacamos ID_Customer y variable sexo
+cluster.customer <- h2o.kmeans(customer.complet.h2o, x = my.predictors, nfolds = 5, k = 4, model_id = 'kmean.per.customer.1')
+
+# Prediction 
+customer.prediction <- as.data.table(h2o.predict(cluster.customer, customer.complet.h2o))
+customer.complet[,cluster := customer.prediction$predict]
+ggplot(customer.complet[,.N,by = cluster], aes(x = cluster, y = N)) + geom_bar(stat = 'identity')
+
+
+mean_per_cluster <- as.data.table(h2o.centers(cluster.customer))
+mean_per_cluster[,cluster := 0:3]
+mean_per_cluster_melted <- melt(mean_per_cluster,id.vars = 'cluster', measure.vars = setdiff(colnames(mean_per_cluster),'cluster'))
+for (variable.ind in mean_per_cluster_melted[,unique(variable)]) {
+  print(ggplot(mean_per_cluster_melted[variable == variable.ind], aes(x = cluster, y = value)) + geom_bar(stat = 'identity') + ggtitle(variable.ind))
+}
+
+```
+
+
+En este caso, el clustering ha dado unos grupos con porcentages de customers razonables. Para intentar caracterizar los distintos clusters, se ha utilizado l'herramienta de *Power BI*.
+
+*AFEGIR LINK!*
+
+*AFEGIR COMENTARIS*
+
+
+### GRID de productos
+
+Finalmente, el historial de compras también se tiene que tener en cuenta, ya que esto tiene un efecto en la próxima compra. Por lo tanto, se ha hecho un grid para indicar, para cada compra, que productos ya se han adquirido anteriormente. Así pues, se añaden 94 variables (tantas como productos únicos), que indican con un valor de 1 si se ha comprado anteriormente cada producto. 
+
+```{r}
+## GRID 
+# Create a table with all products and customers 
+products_bought <- data.table(expand.grid(last_cod_prod = data.train[,unique(Cod_Prod)], ID_Customer = data.train[,unique(ID_Customer)]))
+# add if it was bough or not 
+setnames(last.products,'Cod_Prod','last_cod_prod')
+products_bought_by_customer <- last.products[,.(last_cod_prod,ID_Customer)][,last_product_bought := 1]
+setkey(products_bought_by_customer,last_cod_prod,ID_Customer)
+products_bought_by_customer[,id := products_bought_by_customer[,paste0(last_cod_prod,'_',ID_Customer)]]
+# Duplicated
+products_bought_by_customer <- products_bought_by_customer[!duplicated(id)]
+# Join
+products_bought_by_customer[,last_cod_prod := as.factor(last_cod_prod)]
+products_bought[,last_cod_prod := as.factor(last_cod_prod)]
+product_customer <- products_bought_by_customer[products_bought, on = c('last_cod_prod','ID_Customer')]
+product_customer[is.na(last_product_bought), last_product_bought := 0]
+# Let see the dataset (super imbalaced dataset!!)
+
+product_customer[,prop.table(table(last_product_bought))] 
+
+## Join with customer complet
+setkey(product_customer, ID_Customer)
+setkey(customer.complet, ID_Customer)
+products_bought <- customer.complet[product_customer]
+```
+
+## Matriz final
+
+*RESUMEN VARIABLES AÑADIDAS*
+

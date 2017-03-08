@@ -1,7 +1,3 @@
-
-
-
-
 En este apartado se presenta la selección de models aplicados y su optimización.  
 
 **Concepto Básico** 
