@@ -1,7 +1,3 @@
-
-
-
-
 En este apartado se presenta la selección de models aplicados y su optimización.  
 
 **Concepto Básico** 
@@ -86,10 +82,6 @@ ModelScore < function(dt, prediction_column, plot.histogram = FALSE) {
   
   return(model_score_total)
 }
-```
-
-```
-## Error in eval(expr, envir, enclos): object 'ModelScore' not found
 ```
 
 

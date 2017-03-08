@@ -1,6 +1,6 @@
-En este apartado se explicarán qué variables se introducirán en los modelos predictivos. 
+En este apartado se explican qué variables se introducen en los modelos predictivos. 
 
-Para preparar el dataset de train, se ha decidio utilizar el dataset sin los últimas compras, ya que estas se utilizarán para validar nuestro modelo. 
+Para preparar el dataset de train, se ha decidido utilizar el dataset sin los últimas compras, ya que estas se utilizarán para validar nuestro modelo. 
 
 ```{r,  warning=FALSE}
 # Librerias usadas

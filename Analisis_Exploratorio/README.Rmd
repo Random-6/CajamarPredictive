@@ -27,7 +27,7 @@ data.test<- as.data.table(read.table('/Users/random6/data/test2.txt',header = T,
 ```
 
 Primero se evaluan las dimensiones de los datasets y se hacen comprovaciones senzillas:
-```{r, eval=FALSE}
+```{r, results='hide'}
 ##dimensiones
 #data train
 nrow(data.train)
@@ -49,8 +49,8 @@ El dataset train original tiene una dimensión de 3350601 entradas por 8 variabl
 
 ** Variables **
 Primero de todo, vamos a explorar las variables: 
-```{r}
-#str(data.train)
+```{r,results='hide'}
+str(data.train)
 ```
 El significado de las variables es el siguiente:
 
@@ -65,10 +65,18 @@ El significado de las variables es el siguiente:
 
 Así pues, tenemos el identificador del usuario, el codigo del producto comprado, la fecha de la compra y características demográficas del usuario.
 
+*Visualización variables sociodemográficas*
+
+Para evaluar las variables sociodemográficas de manera dinámica se ha preparado un Desktop con Power BI de Microsoft. De esta manera se pueden visualizar diferentes gráficos dinámicos de estas variables. 
+
+[CajamarPowerBI](https://app.powerbi.com/view?r=eyJrIjoiN2I5MzM5MTUtZWZhMi00MmNlLWI0NmEtMjEwOTY1NWMzOTZjIiwidCI6ImEyMzEzY2FiLWIxYzMtNGYzYS1iYjExLTIxNTc0NDdkZGJiNCIsImMiOjh9)
+
+*CONCLUSIONS!!!!*
+
 
 *Obtener información con la fecha de compra*
-Nos interesaría tener la información de la fecha de compra también separada en mes y año, ya que pueden haber productos que se compren en algunas épocas del año determinadas. Hacemos el cambio. 
-```{r}
+Nos interesa tener la información de la fecha de compra también separada en mes y año, ya que pueden haber productos que se compren en algunas épocas del año determinadas. Hacemos el cambio. 
+```{r, results='hide'}
 ##data.train
 #variable año
 data.train[,year := unlist(strsplit(data.train[,Cod_Fecha],'-'))[seq(1,length(unlist(strsplit(data.train[,Cod_Fecha],'-'))),2)]]
@@ -95,7 +103,7 @@ Podemos ver que los años de compra se distribuyen de manera muy parecida en los
 También es útil saber si los productos se venden aproximadamente en los mismos periodos de tiempo entre el dataset train y test, ya que nos puede servir para establecer etiquetas de productos viejos y nuevos. 
 Primero de todo se calcula los años que hay entre la primera compra y la última de cada producto, para establecer su rango de compra en cada dataset. Posteriormente se comparan los dos datasets para saber si los productos de los dos datasets se ofrecen en el mismo periodo. 
 
-```{r}
+```{r, results='hide'}
 # ---- Periodo de años por producto
 #Cod_Prod a factor
 data.train[,Cod_Prod := as.factor(Cod_Prod)]
@@ -112,11 +120,14 @@ table(years.compared[,.(min_train == min_test, max_train == max_test, period_tra
 
 #Summary de la diferencia de periodos
 summary(years.compared[,.(period_train - period_test), by =Cod_Prod])
+```
 
+```{r}
 #Hacemos un plot de la diferencia de periodos entre train y test (train - test)
 ggplot(years.compared[,min_train-min_test,by =Cod_Prod], aes(x = Cod_Prod, y = V1)) + geom_bar(stat = 'identity') + ggtitle('Diference between min date for train and test')
-
 ```
+
+
 
 Se puede observar que los productos no aparecen en los dos datasets exactamente en el mismo rango de años. Hay un producto en concreto, el 1002, que aparece en el test 29 años antes que en el train, y dos mas, el 704 y el 2503, que aprecen 12 y 11 años antes en el train que en el test, respectivamente. Así pues, aunque mayormente el periodo en que aparecen los productos en el test y el train es parecido, no es muy apropiado basarnos en las fechas de inicio y final de aparición de productos en el train para definir este rango en el test, ya que puede variar. 
 
@@ -174,10 +185,7 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 }
 ```
 
-
-
-```
-
+Vamos a graficar la distribución por mes de unos cuantos productos:
 
 ```{r}
 unique_products <- data.train[,unique(Cod_Prod)]
@@ -194,23 +202,27 @@ p3 <- ggplot(data.train[Cod_Prod == unique_products[13],.N,by = c('month')],aes(
 #9993: se compra especialmente en marzo y abril
 p4 <- ggplot(data.train[Cod_Prod == unique_products[14],.N,by = c('month')],aes(x = month, y = N)) + geom_bar(stat = 'identity') + ggtitle(unique_products[14])
 
-multiplot(p1,p2,p3,p4, col=2)
+multiplot(p1,p2,p3,p4, cols=2)
 ```
 
 Se puede observar que sí que hay productos que se venden en épocas determinadas. Puede ser interesante añadir esta información en los modelos. 
 
 *Hay productos que se vendan juntos?*
 Otra idea interesante a explorar es identificar si hay algunos productos que se vendan juntos. 
-```{r}
+```{r, results='hide'}
 #Cod_Prod a factor
 data.train[,Cod_Prod := as.factor(Cod_Prod)]
 
 #Número de comprar de cada producto por año
 product.by.year<-data.train[,.N,by=c('Cod_Prod','year')][order(-N)]
+```
 
+
+```{r}
 # Que pasa con los productos 9993 y 9991?
 ggplot(data.train[,.N,by = c('Cod_Prod','year')][Cod_Prod==9993 | Cod_Prod==9991], aes(x = year, y = N, fill = Cod_Prod)) + geom_bar(stat = 'identity', position = 'dodge')+ ggtitle('Number of products per Year') 
 ```
+
 
 Con este análisis hemos podido detectar que hay dos productos, el 9993 y el 9991, que tienen cada año el mismo número de compras. Así pues, es indicado suponer que se deben vender juntos o de manera consecutiva. Así pues, si en el test hay usuarios que han comprado uno de los dos productos y no tienen el otro, se les puede recomendar.  
 
@@ -220,7 +232,7 @@ Con este análisis hemos podido detectar que hay dos productos, el 9993 y el 999
 Ahora queremos ver como actua cada customer, por ejemplo, es un customer que compra mucho? Cuando es su primera compra, y la última? Y el tiempo medio entre compras? De esta manera podemos provar de caracterizar los customers. 
 También separaremos las últimas compras de cada customer, ya que nos servirán para comprovar nuestros modelos. 
 
-```{r,eval=FALSE}
+```{r, results='hide'}
 #definimos una fecha actual
 data.train[,date_today := today()]
 data.train[,diff_date_today := as.numeric(difftime(date_today,date,units = 'days'))]
@@ -231,19 +243,18 @@ setkey(last.products,ID_Customer,Cod_Prod)
 
 ## Nos quedamos con el data train sin los últimos productos   
 setkey(data.train, ID_Customer, Cod_Prod)
-data.train.without.last <- data.train[!last.products, ]
 
 ## Variables de tiempo
-temps_var_per_customer <- data.train.without.last[order(date),.(
+temps_var_per_customer <- data.train[order(date),.(
   total_productes_comprats = .N, #N productos comprados 
   temps_desde_primera_compra = diff_date_today[1], # tiempo desde 1a compra
   temps_desde_darrera_compra = diff_date_today[.N] #tiempo desde última compra compra 
 ), by = ID_Customer]
 
-data.train.without.last[,date := as.Date(date)]
-data.train.without.last  <- data.train.without.last[order(date)]
+data.train[,date := as.Date(date)]
+data.train  <- data.train[order(date)]
 #tiempo entre compras
-lag_entre_compres <- data.train.without.last[, .(mean(as.numeric(diff.POSIXt(date)))), by = ID_Customer] 
+lag_entre_compres <- data.train[, .(mean(as.numeric(diff.POSIXt(date)))), by = ID_Customer] 
 
 #Los customers que solo tienen un producto anterior tienen un lag de NAN
 lag_entre_compres[is.nan(V1), V1 := NA]
@@ -253,8 +264,8 @@ setkey(temps_var_per_customer, ID_Customer)
 temps_var_per_customer <-  temps_var_per_customer[lag_entre_compres,on = 'ID_Customer']
 
 ## Añadir temp_var_per_customer (variables temporales) al data.train.without.last 
-setkey(data.train.without.last, ID_Customer)
-data.train.without.last <- data.train.without.last[temps_var_per_customer, on = 'ID_Customer']
+setkey(data.train, ID_Customer)
+data.train<- data.train[temps_var_per_customer, on = 'ID_Customer']
 ```
 
 Una vez preparadas las nuevas variables, vamos a graficar los resultados. 
@@ -267,43 +278,48 @@ ggplot(temps_var_per_customer[,.N,by=total_productes_comprats], aes(x = total_pr
 Podemos ver que la gran mayoria de customers compran entre 1-4 productos. 
 
 Y de los que solo han comprado un producto, que productos predominan?
-```{r}
+```{r, results='hide'}
 ## Customers solo con un producto
 data.train[,Cod_Prod := as.factor(Cod_Prod)]
-data.train.without.last[,Cod_Prod := as.factor(Cod_Prod)]
-ggplot(data.train.without.last[ID_Customer %in% temps_var_per_customer[is.na(lag_entre_compres), ID_Customer], .N,by = Cod_Prod], aes(x = Cod_Prod, y = N)) + geom_bar(stat = 'identity') + theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
+data.train[,Cod_Prod := as.factor(Cod_Prod)]
 ```
+
+```{r}
+ggplot(data.train[ID_Customer %in% temps_var_per_customer[is.na(lag_entre_compres), ID_Customer], .N,by = Cod_Prod], aes(x = Cod_Prod, y = N)) + geom_bar(stat = 'identity') + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
 Se puede ver pues que el *601* destaca en esos usuarios que solo han comprado uno, y ya con menos productos, el *301*, el *201* y el *2302*. 
 
 Tambien se pueden evaluar los productos comprados por customers que compran mucho (> 10 productos).
 ```{r}
 ## Customers con > 10 productos 
-ggplot(data.train.without.last[ID_Customer %in% temps_var_per_customer[total_productes_comprats > 10, ID_Customer],.N,by = Cod_Prod][order(-N)], aes(x = Cod_Prod, y = N)) + geom_bar(stat = 'identity') + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplot(data.train[ID_Customer %in% temps_var_per_customer[total_productes_comprats > 10, ID_Customer],.N,by = Cod_Prod][order(-N)], aes(x = Cod_Prod, y = N)) + geom_bar(stat = 'identity') + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 ```
 El producto *601* sigue siendo muy alto, pero a él se unen también otros productos como el *201* y el *301*, el *2302* y la pareja formada por el *9991* y *9993*. 
 
 Y de los productos que se compran juntos (lag=0), que parejas predominan?
-```{r}
+```{r, results='hide'}
 ## Customers with lag = 0
-data.train.without.last[lag_entre_compres == 0, uniqueN(ID_Customer)]
-data.train.without.last[lag_entre_compres == 0, .N]
-data.train.without.last[lag_entre_compres == 0, .N, by = ID_Customer][,table(N)]
-groups_of_products <- data.train.without.last[lag_entre_compres == 0,paste0(Cod_Prod,collapse = '-'), by = ID_Customer]
+data.train[lag_entre_compres == 0, uniqueN(ID_Customer)]
+data.train[lag_entre_compres == 0, .N]
+data.train[lag_entre_compres == 0, .N, by = ID_Customer][,table(N)]
+groups_of_products <- data.train[lag_entre_compres == 0,paste0(Cod_Prod,collapse = '-'), by = ID_Customer]
 groups_of_products[,.N,by = V1][order(-N)]
 groups_of_products[,.N,by = V1][,hist(log(N))]
-ggplot(groups_of_products[,.N,by = V1][log(N) > 4], aes(x = V1, y = N)) + geom_bar(stat = 'identity') + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
 
+```{r}
+ggplot(groups_of_products[,.N,by = V1][log(N) > 4], aes(x = V1, y = N)) + geom_bar(stat = 'identity') + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 El conjunto predomina más es el de 201-601, seguido de 601-2302, 301-601 y 201-601-2302. Como se ha ido viendo, estos 3 productos son muy recurrentes. 
 
 
 Por otra parte, es de esperar que haya customers que tiendan a comprar más en unos meses que en otros, así que también es interesante mirar si hay este efecto. 
 
-```{r}
+```{r,results='hide'}
 ## Compras de mes por customer
-compres.per.customer.per.mes <- data.train.without.last[,.N,by = c('ID_Customer','month')]
+compres.per.customer.per.mes <- data.train[,.N,by = c('ID_Customer','month')]
 compres.per.customer.dcast <- dcast.data.table(compres.per.customer.per.mes, ID_Customer ~ month, value.var = 'N')
 setnames(compres.per.customer.dcast,grep('[0-9]',colnames(compres.per.customer.dcast),value = T), paste0('month_', grep('[0-9]',colnames(compres.per.customer.dcast),value = T)))
 compres.per.customer.dcast[is.na(compres.per.customer.dcast)] <- 0
@@ -312,7 +328,25 @@ setkey(temps_var_per_customer,ID_Customer)
 setkey(compres.per.customer.dcast,ID_Customer)
 temps_var_per_customer <- temps_var_per_customer[compres.per.customer.dcast]
 ```
+Vamos a graficar algunos customers para ver su comportamiento:
 
+```{r}
+unique_customers <- data.train[,unique(ID_Customer)]
+
+#A0000001: compra en marzo, abril y mayo
+p1<- ggplot(data.train[ID_Customer == unique_customers[1],.N,by = c('month')],aes(x = month, y = N)) + geom_bar(stat = 'identity') + ggtitle(unique_customers[1])
+
+#A0000010: compra en marzo y abril
+p2<- ggplot(data.train[ID_Customer == unique_customers[10],.N,by = c('month')],aes(x = month, y = N)) + geom_bar(stat = 'identity') + ggtitle(unique_customers[10])
+
+#A0000100: compra un producto en setiembre
+p3<- ggplot(data.train[ID_Customer == unique_customers[100],.N,by = c('month')],aes(x = month, y = N)) + geom_bar(stat = 'identity') + ggtitle(unique_customers[100])
+
+#A0001000: compra en marzo y octubre
+p4<- ggplot(data.train[ID_Customer == unique_customers[1000],.N,by = c('month')],aes(x = month, y = N)) + geom_bar(stat = 'identity') + ggtitle(unique_customers[1000])
+
+multiplot(p1,p2,p3,p4, cols=2)
+```
 
 Por otro lado, fijandonos en el tiempo de compras, podemos generar los siguientes gráficos: 
 ```{r}
@@ -321,6 +355,7 @@ p1<- temps_var_per_customer[,hist(temps_desde_primera_compra, main='Tiempo desde
 p2 <- temps_var_per_customer[,hist(temps_desde_darrera_compra, main='Tiempo desde última compra')]
 p3 <- temps_var_per_customer[,hist(lag_entre_compres,main='Tiempo entre compras')]
 ```
+
 ```{r, eval=FALSE}
 summary(temps_var_per_customer$temps_desde_primera_compra)
 summary(temps_var_per_customer$temps_desde_darrera_compra)
@@ -330,13 +365,20 @@ summary(temps_var_per_customer$lag_entre_compres)
 La mayoria de customers tienen aproximadamente un tiempo medio desde la primera compra de 5000 dias (14 años), un tiempo medio desde la última compra de 2222 (7 años) y un lag entre compras de 1200 (3 años). 
 
 
-
 *Relación entre último y penúltimo producto*
 
 Otra idea interesante es mirar la relación entre un producto y el anterior comprado, es decir, si después de comprar uno se tiende a comprar otro en concreto. Para mirar esta idea se cogen los últimos y penúltimos productos de cada customer, para ver que parejas de productos se compran más seguidas.  
 
 
-```{r}
+```{r, results='hide'}
+## Separamos los últimos productos de cada customer del train
+last.products <- data.train[order(date), .(Cod_Prod =Cod_Prod[.N]), by = ID_Customer]
+setkey(last.products,ID_Customer,Cod_Prod)
+
+## Nos quedamos con el data train sin los últimos productos   
+setkey(data.train, ID_Customer, Cod_Prod)
+data.train.without.last <- data.train[!last.products, ]
+
 ## cogemos los penúltimos productos
 penultim.products <- data.train.without.last[order(date), .(Cod_Prod =Cod_Prod[.N]), by = ID_Customer]
 setnames(penultim.products,'Cod_Prod','penultim_cod_prod')
@@ -349,17 +391,20 @@ last.vs.penultim <- last.products[penultim.products]
 
 last.vs.penultim.product.table <- as.data.table(last.vs.penultim[,(table(last_cod_prod,penultim_cod_prod))])
 last.vs.penultim.product.table[,logN := log(N)]
+```
 
+```{r}
 # Matriz de N último vs penútimo en escala logarítmica
 ggplot(data = last.vs.penultim.product.table[logN >4], aes(x = last_cod_prod, y = penultim_cod_prod)) + geom_tile(aes(fill = log(N)))  + scale_fill_gradient2(low="darkblue", high="darkgreen", guide="colorbar") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
 ```
+
+
 Hay algunos productos que se compran bastante seguidos, como por ejemplo el *9991* y el *9993*, como ya hemos comentado anteriormente, el *601* y el *301*, y también el *601* y el *2302*, entre otros. Estos productos han estado apareciendo en todos los análisis hechos hasta ahora, lo que indica que deben ser productos que compran todo tipo de clientes y deben ser bastante básicos. 
 Además, esta matriz nos puede dar una idea de relaciones entre productos, y también nos plantea la posiblidad de hacer cluster de productos para detectar este tipo de relaciones. 
 
 
 
-
+**CONCLUSIONES FINALES**
 
 
 
