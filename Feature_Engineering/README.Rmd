@@ -38,6 +38,7 @@ Es importante tener en cuenta para quien se esta haciendo este modelo predictivo
 data_without_last[,Socio_Demo_04 := NULL]
 ```
 
+## Enriquecer la base 
 
 A partir de las variables dadas también se pueden crear de otras para enriquecer la base. 
 
@@ -70,9 +71,9 @@ most_popular <- sort(customer.per.previous.product, decreasing = T)/data.train.w
 ```
 
 
-## Otras variables
+### Otras variables
 
-### 1. Clustering productos
+#### 1. Clustering productos
 
 Una primera aproximación es hacer un clustering para ver si se agrupan los productos y podemos hacer una variable cluster_producto. 
 Para hacer el clustering se utiliza el paqueta h2o, ya que tiene funciones optimizadas para trabajar con algoritmos de machine learning. 
@@ -114,7 +115,7 @@ product.dataset.proportion.h2o <- LoadInH2o(product.mes.dcast.proportion, destin
 ```
 Como se puede observar, el clustering de productos según el número de productos por mes de compra no genera resultados muy aprovechables, ya que separa los productos en un cluster muy grande y otros de pequeños. Esta información no nos es muy útiles para complementar el modelo. 
 
-### 2. Cluster de customers
+#### 2. Cluster de customers
 
 Vamos a hacer otra aproximación de clustering, esta vez de los usuarios dadas sus características sociodemográficas y la información de compra. Pera hacer este clustering, también se añadirá información sobre el penúltimo producto comprado. 
 
@@ -204,7 +205,23 @@ setkey(customer.complet, ID_Customer)
 products_bought <- customer.complet[product_customer]
 ```
 
-## Matriz final
 
-*RESUMEN VARIABLES AÑADIDAS*
+## Base con variables finales
+
+Finalmente, se han añadido variables para enriquecer la base que se utiliza para los modelos. Las variables de la nueva base son:
+* Socio_Demo01-05, todas excepto el género. 
+* Total productos
+* Variables de tiempo de compra
+  + Mes
+  + Año
+  + Tiempo desde la 1a compra
+  + Tiempo desde última compra
+  + Lag entre compras
+  + Compras por mes
+* Total productos comprados
+* 94 columnas, una por producto, indicando si se ha adquirido previamente.
+
+
+
+
 
