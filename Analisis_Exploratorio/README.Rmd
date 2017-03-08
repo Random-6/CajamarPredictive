@@ -1,12 +1,12 @@
 En este primer apartado se presenta el análisis exploratorio de los datos del reto Microsoft Predictive Modelling de Cajamar. 
 
-**Introducción Cajamar**
+## Introducción Cajamar
 
 Cajamar es una entidad financiera resultante de la fusión de diversas cajas rurales españolas. Sus primeras oficinas abrireron sus puertas en 1966 en Almería. En 1988 iniciaron su expansión integrando otras cajas rurales y cooperativas, actividad que siguieron desarrolando a lo largo de los siguientes años, especialmente a partir de los años 2000. Actualmente tiene más de 1,4 millones de socios y 4 millones clientes. 
 
 Las actividades de Cajamar Caja Rural atienden las necesidades y demandas de financiación, ahorro e inversión de sus socios y clientes. Realiza toda clase de operaciones activas, pasivas y de servicios, entre ellas las de banca al por menor en su red de sucursales, banca corporativa, financiación hipotecaria, banca telefónica y banca electrónica, operaciones financieras con no residentes, gestión de fondos y patrimonios, arrendamiento financiero, seguros y otros productos secundarios para captación de recursos o financiación a clientes.
 
-**Primeros pasos**
+## Primeros pasos
 
 ```{r,  warning=FALSE}
 # Librerias usadas
@@ -47,7 +47,8 @@ sapply(data.test,function(x)any(is.na(x)))
 El dataset train original tiene una dimensión de 3350601 entradas por 8 variables y el dataset test, 1147687 entradas y 8 variables. Antes de empezar se tienen que comprobar si hay entradas duplicadas y/o missing values. En este caso no hay duplicados ni missing values.
 
 
-** Variables **
+## Variables
+
 Primero de todo, vamos a explorar las variables: 
 ```{r,results='hide'}
 str(data.train)
@@ -65,16 +66,31 @@ El significado de las variables es el siguiente:
 
 Así pues, tenemos el identificador del usuario, el codigo del producto comprado, la fecha de la compra y características demográficas del usuario.
 
-*Visualización variables sociodemográficas*
+### Visualización variables sociodemográficas
 
 Para evaluar las variables sociodemográficas de manera dinámica se ha preparado un Desktop con Power BI de Microsoft. De esta manera se pueden visualizar diferentes gráficos dinámicos de estas variables. 
 
 [CajamarPowerBI](https://app.powerbi.com/view?r=eyJrIjoiN2I5MzM5MTUtZWZhMi00MmNlLWI0NmEtMjEwOTY1NWMzOTZjIiwidCI6ImEyMzEzY2FiLWIxYzMtNGYzYS1iYjExLTIxNTc0NDdkZGJiNCIsImMiOjh9)
 
-*CONCLUSIONS!!!!*
 
+Primero nos fijamos en la información que nos da la fecha de compra. Podemos ver que los años de compra se distribuyen de manera muy parecida en los dos datasets. Es interesante observar que tenemos tanto entradas antiguas como entradas mas recientes, aunque predominan las mas nuevas. Si tenemos en cuenta la evolución de Cajamar, tiene sentido que en los años recientes haya un mayor número de entradas, ya que coincide con la expansión y fusión de la entidad.  En los primeros años hay pocas compras y a medida que avanzamos van augmentando y el incremento más significativo se encuentra a partir del 2000 en ambos datasets. Por otro lado, los dos datsets tiene una distribución de compras por mes variable, con un máximo en marzo. Así pues, parece ser que temporalmente tienes características muy similares.
 
-*Obtener información con la fecha de compra*
+Ahora nos fijamos en las variables sociodemográficas.
+Comparando las variables del train y del test podemos comprovar que, igual que pasaba en la información temporal, también se han mantenido las proporciones en las variables sociodemográficas.  
+- El rango de edad predominante en los dos datasets es el 4º, de  >= 45 años y Edad < 65 años, seguido del 3º, >= 30 años y Edad < 45 años. 
+- Los rango de antigüedad mayores en los dos datasets son el 4º y el 5º, de 10-20 años y >= 20 años. 
+- En los ingresos encontramos diferencias en los datasets. En el train predominan los customers con 2º, de >= 6.000-12.000€, y seguidos muy de cerca por los del 3º 12.000-24.000€. En cambio, en el test primero hay del 3ª y luego del 5º, de >= 32.000 €. Así pues, en el dataset de test parece que hay customers con ingresos más altos. 
+- En el género también hay diferencias, ya que en el dataset de train hay más hombres y en el dataset de test más mujeres, concretamente 44.3M-55.7H, en el train, y 61.12M-38.88H en el test. 
+- Finalmente, respecto al segmento de los customers, ambos datasets tienen mayoritariamente a particulares. 
+
+Así pues, con esta exploración hemos podido hacernos una idea general de los dos datasets, sus parecidos y diferencias. 
+
+## Analisis de nuevas variables
+
+Ahora nos interesa aprofundir en ciertas variables, para poder sacar más información de los datasets. 
+
+### Obtener información con la fecha de compra
+
 Nos interesa tener la información de la fecha de compra también separada en mes y año, ya que pueden haber productos que se compren en algunas épocas del año determinadas. Hacemos el cambio. 
 ```{r, results='hide'}
 ##data.train
@@ -93,15 +109,9 @@ data.test[,month := unlist(strsplit(data.test[,Cod_Fecha],'-'))[seq(2,length(unl
 #variable date en formato fecha
 data.test[,date:=as.Date(as.yearmon(Cod_Fecha))]
 ```
-Una comprovación importante es saber si el dataset de test tiene una distribución de año de compras similar al dataset de train. Vamos a mirarlo. 
-
-```{r}
-ggplot(data.train[,.N,by=year], aes(x = year, y = N)) + geom_bar(stat = 'identity', fill = 'red') + geom_bar(data = data.test[,.N,by = year], aes(x = year, y = N), fill = 'blue', stat = 'identity') + ggtitle('Train and test')
-```
-Podemos ver que los años de compra se distribuyen de manera muy parecida en los dos datasets. Es interesante observar que tenemos tanto entradas antiguas como entradas mas recientes, aunque predominan las mas nuevas. Si tenemos en cuenta la evolución de Cajamar, tiene sentido que en los años recientes haya un mayor número de entradas, ya que coincide con la expansión y fusión de la entidad.  
-
-También es útil saber si los productos se venden aproximadamente en los mismos periodos de tiempo entre el dataset train y test, ya que nos puede servir para establecer etiquetas de productos viejos y nuevos. 
+Una vez comprovado que el dataset de train y el de test tiene una distribución de año de compras similar, es útil saber si los productos se venden aproximadamente en los mismos periodos de tiempo entre el dataset train y test, ya que nos puede servir para establecer etiquetas de productos viejos y nuevos.
 Primero de todo se calcula los años que hay entre la primera compra y la última de cada producto, para establecer su rango de compra en cada dataset. Posteriormente se comparan los dos datasets para saber si los productos de los dos datasets se ofrecen en el mismo periodo. 
+
 
 ```{r, results='hide'}
 # ---- Periodo de años por producto
@@ -126,8 +136,6 @@ summary(years.compared[,.(period_train - period_test), by =Cod_Prod])
 #Hacemos un plot de la diferencia de periodos entre train y test (train - test)
 ggplot(years.compared[,min_train-min_test,by =Cod_Prod], aes(x = Cod_Prod, y = V1)) + geom_bar(stat = 'identity') + ggtitle('Diference between min date for train and test')
 ```
-
-
 
 Se puede observar que los productos no aparecen en los dos datasets exactamente en el mismo rango de años. Hay un producto en concreto, el 1002, que aparece en el test 29 años antes que en el train, y dos mas, el 704 y el 2503, que aprecen 12 y 11 años antes en el train que en el test, respectivamente. Así pues, aunque mayormente el periodo en que aparecen los productos en el test y el train es parecido, no es muy apropiado basarnos en las fechas de inicio y final de aparición de productos en el train para definir este rango en el test, ya que puede variar. 
 
@@ -227,7 +235,7 @@ ggplot(data.train[,.N,by = c('Cod_Prod','year')][Cod_Prod==9993 | Cod_Prod==9991
 Con este análisis hemos podido detectar que hay dos productos, el 9993 y el 9991, que tienen cada año el mismo número de compras. Así pues, es indicado suponer que se deben vender juntos o de manera consecutiva. Así pues, si en el test hay usuarios que han comprado uno de los dos productos y no tienen el otro, se les puede recomendar.  
 
 
-** Variables relacionadas con el customer **
+### Variables relacionadas con el customer 
 
 Ahora queremos ver como actua cada customer, por ejemplo, es un customer que compra mucho? Cuando es su primera compra, y la última? Y el tiempo medio entre compras? De esta manera podemos provar de caracterizar los customers. 
 También separaremos las últimas compras de cada customer, ya que nos servirán para comprovar nuestros modelos. 
@@ -365,7 +373,7 @@ summary(temps_var_per_customer$lag_entre_compres)
 La mayoria de customers tienen aproximadamente un tiempo medio desde la primera compra de 5000 dias (14 años), un tiempo medio desde la última compra de 2222 (7 años) y un lag entre compras de 1200 (3 años). 
 
 
-*Relación entre último y penúltimo producto*
+### Relación entre último y penúltimo producto
 
 Otra idea interesante es mirar la relación entre un producto y el anterior comprado, es decir, si después de comprar uno se tiende a comprar otro en concreto. Para mirar esta idea se cogen los últimos y penúltimos productos de cada customer, para ver que parejas de productos se compran más seguidas.  
 
