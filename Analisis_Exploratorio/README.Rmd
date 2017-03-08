@@ -65,14 +65,6 @@ El significado de las variables es el siguiente:
 
 Así pues, tenemos el identificador del usuario, el codigo del producto comprado, la fecha de la compra y características demográficas del usuario.
 
-*Son todas las variables necesarias*
-
-Es importante tener en cuenta para quien se esta haciendo este modelo predictivo. En este caso, el banco Cajamar tiene que decidir la interpretabilidad y viabilidad del modelo. Así pues, una variable que hemos decidido no utilizar para esta predicción es el género del cliente, ya que no es adecuado que el banco utilize un modelo que introduzca diferencias de compra en función del género del cliente.  
-```{r}
-## Eliminar columna sexo
-data.train[,Socio_Demo_04 := NULL]
-```
-
 
 *Obtener información con la fecha de compra*
 Nos interesaría tener la información de la fecha de compra también separada en mes y año, ya que pueden haber productos que se compren en algunas épocas del año determinadas. Hacemos el cambio. 
@@ -260,6 +252,9 @@ setkey(lag_entre_compres,ID_Customer)
 setkey(temps_var_per_customer, ID_Customer)
 temps_var_per_customer <-  temps_var_per_customer[lag_entre_compres,on = 'ID_Customer']
 
+## Añadir temp_var_per_customer (variables temporales) al data.train.without.last 
+setkey(data.train.without.last, ID_Customer)
+data.train.without.last <- data.train.without.last[temps_var_per_customer, on = 'ID_Customer']
 ```
 
 Una vez preparadas las nuevas variables, vamos a graficar los resultados. 
@@ -289,6 +284,36 @@ ggplot(data.train.without.last[ID_Customer %in% temps_var_per_customer[total_pro
 ```
 El producto *601* sigue siendo muy alto, pero a él se unen también otros productos como el *201* y el *301*, el *2302* y la pareja formada por el *9991* y *9993*. 
 
+Y de los productos que se compran juntos (lag=0), que parejas predominan?
+```{r}
+## Customers with lag = 0
+data.train.without.last[lag_entre_compres == 0, uniqueN(ID_Customer)]
+data.train.without.last[lag_entre_compres == 0, .N]
+data.train.without.last[lag_entre_compres == 0, .N, by = ID_Customer][,table(N)]
+groups_of_products <- data.train.without.last[lag_entre_compres == 0,paste0(Cod_Prod,collapse = '-'), by = ID_Customer]
+groups_of_products[,.N,by = V1][order(-N)]
+groups_of_products[,.N,by = V1][,hist(log(N))]
+ggplot(groups_of_products[,.N,by = V1][log(N) > 4], aes(x = V1, y = N)) + geom_bar(stat = 'identity') + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+El conjunto predomina más es el de 201-601, seguido de 601-2302, 301-601 y 201-601-2302. Como se ha ido viendo, estos 3 productos son muy recurrentes. 
+
+
+Por otra parte, es de esperar que haya customers que tiendan a comprar más en unos meses que en otros, así que también es interesante mirar si hay este efecto. 
+
+```{r}
+## Compras de mes por customer
+compres.per.customer.per.mes <- data.train.without.last[,.N,by = c('ID_Customer','month')]
+compres.per.customer.dcast <- dcast.data.table(compres.per.customer.per.mes, ID_Customer ~ month, value.var = 'N')
+setnames(compres.per.customer.dcast,grep('[0-9]',colnames(compres.per.customer.dcast),value = T), paste0('month_', grep('[0-9]',colnames(compres.per.customer.dcast),value = T)))
+compres.per.customer.dcast[is.na(compres.per.customer.dcast)] <- 0
+
+setkey(temps_var_per_customer,ID_Customer)
+setkey(compres.per.customer.dcast,ID_Customer)
+temps_var_per_customer <- temps_var_per_customer[compres.per.customer.dcast]
+```
+
+
 Por otro lado, fijandonos en el tiempo de compras, podemos generar los siguientes gráficos: 
 ```{r}
 par(mfrow=c(3,1))
@@ -303,6 +328,7 @@ summary(temps_var_per_customer$lag_entre_compres)
 ```
 
 La mayoria de customers tienen aproximadamente un tiempo medio desde la primera compra de 5000 dias (14 años), un tiempo medio desde la última compra de 2222 (7 años) y un lag entre compras de 1200 (3 años). 
+
 
 
 *Relación entre último y penúltimo producto*
