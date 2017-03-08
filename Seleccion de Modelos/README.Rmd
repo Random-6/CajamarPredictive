@@ -11,6 +11,8 @@ ggthemr('dust') ## Set theme
 
 En este apartado se presenta la selección de models aplicados y su optimización.  
 
+----
+
 ### Concepto Básico
 
 El objetivo principal de este proyecto es la recomendación del siguiente producto a comprar por un determinado Customer_ID. Como hemos visto en apartados anteriores, disponemos de variables tanto socio-demográficas como variables relacionadas con el historial de compra del usuario. En el caso particular, además, se ha añadido la variable resultant de los *cluster* sobre el Customer_ID creados en apartados anteriores. 
@@ -31,7 +33,6 @@ La idea principal es crear un modelo (o un ensamble de varios) que tenga como en
 Al tratarse de un problema de clasificación se usarán básicamente dos tipos de modelo: Random Forest y GBM (Gradient Boosted Machine). Ambos modelos se aplicarán usando la libreria [h2o](https://github.com/h2oai/h2o-3), una plataforma pública para el desarollo de big data y machine learning. Usando la misma libreria se aplicará también una optimización de parámetros usando un Random grid search. Finalmente se probará el ensemble de diversos modelos para intentar aumentar la *performance* del sistema. 
 
 La validación se hará usando las distintas métricas asociadas a este tipo de problemas: ROC Curve (valores de true positive y false positive) y la Precisión-Recall Curve (más adecuada para casos con datasets imbalance, como es nuestro caso). Finalmente se creará una métrica de validación del sistema de recomenación propia, para así dar un score más  ajustado a nuestro problema (el cual no es puramente de clasificación sino de recomendación de la mejor opción). 
-
 
 ---------
 
