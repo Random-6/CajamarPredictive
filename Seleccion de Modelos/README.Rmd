@@ -11,7 +11,7 @@ ggthemr('dust') ## Set theme
 
 En este apartado se presenta la selección de models aplicados y su optimización.  
 
-**Concepto Básico** 
+### Concepto Básico
 
 El objetivo principal de este proyecto es la recomendación del siguiente producto a comprar por un determinado Customer_ID. Como hemos visto en apartados anteriores, disponemos de variables tanto socio-demográficas como variables relacionadas con el historial de compra del usuario. En el caso particular, además, se ha añadido la variable resultant de los *cluster* sobre el Customer_ID creados en apartados anteriores. 
 
@@ -33,8 +33,9 @@ Al tratarse de un problema de clasificación se usarán básicamente dos tipos d
 La validación se hará usando las distintas métricas asociadas a este tipo de problemas: ROC Curve (valores de true positive y false positive) y la Precisión-Recall Curve (más adecuada para casos con datasets imbalance, como es nuestro caso). Finalmente se creará una métrica de validación del sistema de recomenación propia, para así dar un score más  ajustado a nuestro problema (el cual no es puramente de clasificación sino de recomendación de la mejor opción). 
 
 
+---------
 
-**Modelos usados, optimización y ensemble** 
+### Modelos usados y optimización de parámetros 
 
 1. Modelos 
 
@@ -54,7 +55,14 @@ historical_melted <- melt(grid.search.results, id.vars = 'Value', measure.vars =
 ggplot(historical_melted, aes(x = value, y = Value)) + geom_line() +  facet_wrap(~ variable, scales = 'free') + ggtitle('Parameters per iteration vs AUC')
 ```
 
-**Validación** 
+3. Modelo por Cluster  
+
+Basandonos en los cluster de Customer ID creados en apartados anteriores, se ha creado un modelo de DRF (distributed random forest) para las muestras pertenecientes a cada cluster. Dichos modelos se han optimizado usando el Random Grid Search. Finalmente se han combinado las prediciones en un mismo test.set (20% restante). La división de los modelos entre los cuatro clusters nos ha permitido mejorar la calidad del modelo y model las diferencias que puedan haber entre diferents customers. 
+
+----------
+
+
+### Validación 
  
  Para la validación del modelo se han usado tres métricas principales: ROC-Curve, Precision-Recall Curve y el Model_Score. 
 
@@ -64,30 +72,29 @@ ggplot(historical_melted, aes(x = value, y = Value)) + geom_line() +  facet_wrap
 
 
 ```{r, eval=FALSE}
-ModelScore < function(dt, prediction_column, plot.histogram = FALSE) {
+## Model Score 
+ModelScore <- function(dt, prediction_column, plot.histogram = FALSE) {
   ## Ordenar dataset en funcion de la predicción y dar un valor de orden para todos los productos agrupando por customer
   dt.validate <- dt[order(ID_Customer,get(prediction_column)), .(
     order_prediction = 1:.N, ## from 1 to N (94), 
     last_product_bought, ## Variable dicotómica de 0/1 (no comprado - comprado) 
     get(prediction_column)
-  ), by = Customer_ID]
+  ), by = ID_Customer]
+  dt.validate[,model_score := order_prediction * last_product_bought]
   
   ## Calcular el Model score de cada customer. Este model score se calcula como el valor del order prediction (que va de 1 a 94) multiplicado por la variable dicotómica target (0-1)
   ## Entonces, a mayor order_prediction (es decir, a menor valor de probabilidad del producto de ser comprado), menor posición en el ranking y por tanto un mayor model_score (i.e. producto
   ## queda en la posición de recomendación 30 y al final es ese producto el que fue comprado, el model_score será de 30). 
   
   ## Normalización del model score sobre el máximo: 
-  model_score_total <- test.set.to.validate[,.(model_score = sum(model_score)), by = ID_Customer][,sum(model_score)] / (94*dt[,uniqueN(ID_Customer)])  ##En nuestro caso, el peor caso seria que el producto comprado fuera el último que se recomendó 
+  model_score_total <- dt.validate[,.(model_score = sum(model_score)), by = ID_Customer][,sum(model_score)] / (94*dt[,uniqueN(ID_Customer)])  ##En nuestro caso, el peor caso seria que el producto comprado fuera el último que se recomendó 
   
   ## Pintar el histograma del model_score si se decea 
-  if (isTrue(plot.histogram)) {
-    print(ggplot(dt[,.(model_Score = sum(model_score)), by = ID_Customer]), aes(x = model_score)) + geom_histogram()
+  if (isTRUE(plot.histogram)) {
+    p1 <- ggplot(dt.validate[,.(model_score = sum(model_score)), by = ID_Customer], aes(x = model_score)) + geom_histogram(bins = 94, fill = '#0EB3F1', color = 'black') + ggtitle('Histogram of Customers vs Model Score')
   }
   
-  ## Estimar porcentages de customers por el cual se recomendó el producto a comprar el 1r, 2n i 3r
-  
-  
-  return(model_score_total)
+  return(list(model_score_total,p1))
 }
 ```
 

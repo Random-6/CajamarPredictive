@@ -1,0 +1,119 @@
+
+
+En este apartado se presenta los resultados obtenidos. 
+
+-----
+
+### Validación de los modelos por cada cluster 
+
+Continuando con lo explicado en el apartado anterior de "Seleccion de Modelos", se ha aplicado un DRF con una optimización usando un Grid Random Search para cada train and test set agrupado por los distintos clusters. A continuación se muestran los resultados de la validación con la curva ROC i la Curva de Precision-Recall (explicadas brevemente anteriormente). 
+
+- ROC: las curvas ROC muestras una performance casi perfecta del modelo. El area bajo las curvas para los distintos cluster varia desde 0.92 a 0.98. Sin embargo, y como se ha explicado brevemente, esta curva puede dar información falsa sobre como es, en realidad, la performance del modelo, ya que nos da información que puede estar bias debido al imbalance dataset. 
+
+- Precision - Recall: en este caso si podemos ver diferencias entre los modelos, siendo el cluster_2grid (cluster 2) el que obtuvo mejores puntuaciones de precision y el que dispone de una mejor precision-recall curve. 
+
+
+
+```r
+thresholds_and_metric_scores <- fread(paste0(path,'thresholds.and.metrics.test.set.csv'))
+ggplot(thresholds_and_metric_scores, aes(x = fpr, y = tpr)) + geom_point() + geom_line() + ggtitle('AUC') + geom_abline(intercept = 0, slope = 1, linetype = 'dashed') + facet_grid(~cluster)
+```
+
+<img src="figure/unnamed-chunk-2-1.png" title="plot of chunk unnamed-chunk-2" alt="plot of chunk unnamed-chunk-2" style="display: block; margin: auto;" />
+
+```r
+ggplot(thresholds_and_metric_scores, aes(x = recall, y = precision)) + geom_point() + geom_line() + ggtitle('Precision Recall') + geom_abline(intercept = 1, slope = -1, linetype = 'dashed') + facet_grid(~cluster)
+```
+
+<img src="figure/unnamed-chunk-2-2.png" title="plot of chunk unnamed-chunk-2" alt="plot of chunk unnamed-chunk-2" style="display: block; margin: auto;" />
+
+
+---
+
+### Validación del Model Score 
+
+El Model Score nos da una idea de como de bien recomienda nuestro modelo. En el mejor de los casos el model score debiera ser de 1, siendo que hemos recomenando a cada customer el producto que realmente compró en el primer lugar del ranking. 
+En nuestro caso se ha obtenido un Model Score de 0.95, bastante cercano a 1. 
+Los siguientes gráficos muestran el histograma de score por customer. Recordemos que para cada customer se calcula el score como la posición en el ranking del producto que realmente compró (siendo 1 el peor score y 94 el mejor). 
+El gráfico muestra claramente un pico en la posición 94, es decir, en el mejor resultado. Ese se corresponde con la cantidad de customers por los cuales se ha recomendado el producto correcto a la primera. Sin embargo también se puede observar una cola en los otros valores de score, confirmando que el modelo no tiene una performance perfecta. 
+
+
+
+
+```r
+ModelScore <- function(dt, prediction_column, plot.histogram = FALSE) {
+  ## Ordenar dataset en funcion de la predicción y dar un valor de orden para todos los productos agrupando por customer
+  dt.validate <- dt[order(ID_Customer,get(prediction_column)), .(
+    order_prediction = 1:.N, ## from 1 to N (94), 
+    last_product_bought, ## Variable dicotómica de 0/1 (no comprado - comprado) 
+    get(prediction_column)
+  ), by = ID_Customer]
+  dt.validate[,model_score := order_prediction * last_product_bought]
+  
+  ## Calcular el Model score de cada customer. Este model score se calcula como el valor del order prediction (que va de 1 a 94) multiplicado por la variable dicotómica target (0-1)
+  ## Entonces, a mayor order_prediction (es decir, a menor valor de probabilidad del producto de ser comprado), menor posición en el ranking y por tanto un mayor model_score (i.e. producto
+  ## queda en la posición de recomendación 30 y al final es ese producto el que fue comprado, el model_score será de 30). 
+  
+  ## Normalización del model score sobre el máximo: 
+  model_score_total <- dt.validate[,.(model_score = sum(model_score)), by = ID_Customer][,sum(model_score)] / (94*dt[,uniqueN(ID_Customer)])  ##En nuestro caso, el peor caso seria que el producto comprado fuera el último que se recomendó 
+  
+  ## Pintar el histograma del model_score si se decea 
+  if (isTRUE(plot.histogram)) {
+    p1 <- ggplot(dt.validate[,.(model_score = sum(model_score)), by = ID_Customer], aes(x = model_score)) + geom_histogram(bins = 94, fill = '#0EB3F1', color = 'black') + ggtitle('Histogram of Customers vs Model Score')
+  }
+  
+  return(list(model_score_total,p1))
+}
+
+ModelScore(test.set,'prediction',plot.histogram = TRUE)
+```
+
+```
+## [[1]]
+## [1] 0.9578108
+## 
+## [[2]]
+```
+
+<img src="figure/unnamed-chunk-4-1.png" title="plot of chunk unnamed-chunk-4" alt="plot of chunk unnamed-chunk-4" style="display: block; margin: auto;" />
+
+El siguiente gráfico es igual al anterior pero permite ver la proporción de customers por cada score. Esto nos permite confirmar los sigueintes resultados: 
+- 46% de customers se les ha recomendado el producto correcto en el 1r lugar 
+- 76% de customers se les ha recomendado el producto correcto entre el 1r i el 4t lugar 
+
+
+```r
+dt.validate <- test.set[order(ID_Customer,get('prediction')), .(
+    order_prediction = 1:.N, ## from 1 to N (94), 
+    last_product_bought, ## Variable dicotómica de 0/1 (no comprado - comprado) 
+    get('prediction')
+  ), by = ID_Customer]
+  dt.validate[,model_score := order_prediction * last_product_bought]
+  
+ggplot(dt.validate[,.(model_score = sum(model_score)), by = ID_Customer], aes(x = model_score)) + geom_histogram(aes(y=..count../sum(..count..)),bins = 94, fill = '#02D0AC', color = 'black') + ggtitle('Histogram of Prop Customers vs Model Score')
+```
+
+<img src="figure/unnamed-chunk-5-1.png" title="plot of chunk unnamed-chunk-5" alt="plot of chunk unnamed-chunk-5" style="display: block; margin: auto;" />
+
+
+Finalmente, y como curiosidad, si calculamos el Model Score solo en los customers que anteriormente habian comprado el producto 9991, tenemos un model score de 0.999 (casi 1) y el producto a recomendar és el 9993!! 
+
+
+
+```r
+test.set[order(ID_Customer,get('prediction')), .(order_prediction = 1:.N, last_product_bought, prediction = get('prediction'), penultim_cod_prod,last_cod_prod),by = ID_Customer][penultim_cod_prod == 9991 & last_product_bought ==1, .(last_cod_prod, order_prediction), by = ID_Customer][,table(order_prediction,last_cod_prod)]
+```
+
+```
+##                 last_cod_prod
+## order_prediction 9993
+##               88    1
+##               89    1
+##               90    4
+##               91    8
+##               92   17
+##               93   79
+##               94 4850
+```
+
+
