@@ -49,7 +49,6 @@ data.test[,date:=as.Date(as.yearmon(Cod_Fecha))]
 Una vez comprovado que el dataset de train y el de test tiene una distribución de año de compras similar, es útil saber si los productos se venden aproximadamente en los mismos periodos de tiempo entre el dataset train y test, ya que nos puede servir para establecer etiquetas de productos viejos y nuevos.
 Primero de todo se calcula los años que hay entre la primera compra y la última de cada producto, para establecer su rango de compra en cada dataset. Posteriormente se comparan los dos datasets para saber si los productos de los dos datasets se ofrecen en el mismo periodo. 
 
-
 ```{r, results='hide'}
 # ---- Periodo de años por producto
 #Cod_Prod a factor
@@ -68,7 +67,7 @@ table(years.compared[,.(min_train == min_test, max_train == max_test, period_tra
 #Summary de la diferencia de periodos
 summary(years.compared[,.(period_train - period_test), by =Cod_Prod])
 ```
-
+El gráfico de continuación presenta la diferencia entre el año inicial de los productos entre ambos datasets, dándonos visión de dicha diferencia.
 ```{r}
 #Hacemos un plot de la diferencia de periodos entre train y test (train - test)
 ggplot(years.compared[,min_train-min_test,by =Cod_Prod], aes(x = Cod_Prod, y = V1)) + geom_bar(stat = 'identity') + ggtitle('Diference between min date for train and test')
