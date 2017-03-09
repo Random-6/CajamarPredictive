@@ -81,10 +81,11 @@ Así pues, con esta exploración hemos podido hacernos una idea general de los d
 
 ## Conclusiones 
 
-Después de este primera exploración de los datos, podemos concluir que los datasets de train y test estan hechos de manera muy similar, sobretodo en la distribución temporal. Hay diferencies por lo que respecta a customers en género y segmento. 
-Destacar que hay productos como el 301, el 601, el 2302, el 9991 y el 9993 que aparecen recurrentemente en la mayoría de análisis, puesto que deben ser productos muy comunes para la mayoría de customers. 
+Después de esta primera exploración de los datos, podemos concluir que los datasets de train y test estan hechos de manera muy similar, sobretodo en la distribución temporal. Hay diferencies por lo que respecta a customers en género y segmento.
 
+En este reto parece clave la información que se puede obtener a partir de la fecha de compra, así que puede ser útil para el modelo predictivo añadir más variables con información temporal.
 
+El orden de compra es importante, ya que hay productes que se compran o tienden a comprarse juntos. Por lo tanto, también puede ser de utilidad añadir variables de compras previas. El orden de compra es importante, ya que hay productes que se compran o tienden a comprarse Esta información primaria se usará para la creación de nuevas variables y de modelos.
 
 
 
